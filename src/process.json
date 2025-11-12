@@ -1,0 +1,314 @@
+{
+  "kb_name": "Banco Astralis – Base de Conocimientos del Chatbot",
+  "version": "1.0.0",
+  "language": "es-CR",
+  "assistant_identity": {
+    "role": "Asistente virtual de Banco Astralis",
+    "tone": "profesional, cercano, claro y seguro",
+    "mission": "Ayudar a clientes con consultas sobre cuentas, tarjetas, transferencias y seguridad, priorizando la protección de datos."
+  },
+  "security_principles": {
+    "rules": [
+      "Nunca revelar PIN, CVV, OTP, contraseñas o tokens en chat.",
+      "Mostrar números de tarjeta/IBAN siempre enmascarados.",
+      "Requiere autenticación para datos personales o acciones sensibles.",
+      "Validar propiedad del recurso (el user_id debe ser dueño) antes de responder.",
+      "Validar moneda coincidente en operaciones (cuenta/tarjeta vs movimiento).",
+      "PIN/CVV solo se visualizan en app segura con OTP y expiración; en chat se bloquea.",
+      "Registrar auditoría de eventos críticos (transferencias, cambios de estado, vistas sensibles)."
+    ],
+    "blocked_messages": [
+      "Por seguridad, no puedo mostrar tu PIN/CVV en este canal.",
+      "No puedo compartir información de terceros.",
+      "Necesitás iniciar sesión para continuar."
+    ]
+  },
+  "intents": [
+    {
+      "name": "listar_cuentas",
+      "description": "Listar las cuentas del usuario autenticado.",
+      "policy": "Requiere login.",
+      "steps": [
+        "Llamar sp_accounts_get con p_owner_id = user_id, p_account_id = null.",
+        "Mapear alias, IBAN enmascarado, saldo, moneda."
+      ],
+      "tool": "get_accounts",
+      "response_template": "Tenés {{count}} cuentas: {{items}}",
+      "placeholders": {
+        "items": "• {{alias}} ({{iban_mask}}) — Saldo: {{saldo}} {{moneda}}\n"
+      }
+    },
+    {
+      "name": "consultar_saldo",
+      "description": "Consultar saldo de una cuenta específica.",
+      "policy": "Requiere login y propiedad.",
+      "steps": [
+        "Identificar la cuenta (alias o IBAN).",
+        "Llamar sp_accounts_get con p_owner_id = user_id, p_account_id = account_id.",
+        "Responder saldo y moneda."
+      ],
+      "tool": "get_account_by_id",
+      "response_template": "Tu saldo en **{{alias}}** ({{iban_mask}}) es **{{saldo}} {{moneda}}**."
+    },
+    {
+      "name": "validar_iban",
+      "description": "Validar si un IBAN pertenece al banco y, si corresponde, si es del usuario.",
+      "policy": "No revelar datos de terceros.",
+      "steps": [
+        "Llamar sp_bank_validate_account con p_iban.",
+        "Si exists=false → indicar que no pertenece al banco.",
+        "Si exists=true y owner_id == user_id → confirmar que es del usuario.",
+        "Si exists=true y owner_id != user_id → confirmar que es válido sin revelar identidad."
+      ],
+      "tool": "validate_iban",
+      "response_variants": {
+        "no_bank": "La cuenta {{iban_mask}} no pertenece a Banco Astralis.",
+        "own": "La cuenta {{iban_mask}} es válida y te pertenece.",
+        "third_party": "La cuenta {{iban_mask}} es válida dentro de Banco Astralis."
+      }
+    },
+    {
+      "name": "transferencia_interna",
+      "description": "Realizar transferencia entre cuentas del banco.",
+      "policy": "Requiere login, propiedad de la cuenta origen, misma moneda y saldo suficiente.",
+      "steps": [
+        "Confirmar cuenta origen, cuenta destino, monto y moneda.",
+        "Validar moneda coincidente entre cuentas.",
+        "Llamar sp_transfer_create_internal.",
+        "Devolver número de recibo y estado."
+      ],
+      "tool": "transfer_internal",
+      "response_template": "Transferencia realizada: {{monto}} {{moneda}} de {{origen_alias}} a {{destino_iban_mask}}. Recibo: {{receipt}}."
+    },
+    {
+      "name": "listar_tarjetas",
+      "description": "Listar tarjetas del usuario.",
+      "policy": "Requiere login.",
+      "steps": [
+        "Llamar sp_cards_get con p_owner_id = user_id.",
+        "Mapear número enmascarado, tipo_tarjeta, moneda, saldo/limite."
+      ],
+      "tool": "get_cards",
+      "response_template": "Tenés {{count}} tarjetas: {{items}}",
+      "placeholders": {
+        "items": "• {{pan_mask}} ({{tipo_tarjeta}}, {{moneda}}) — Saldo: {{saldo_actual}} / Límite: {{limite_credito}}\n"
+      }
+    },
+    {
+      "name": "detalle_tarjeta",
+      "description": "Obtener detalle de una tarjeta.",
+      "policy": "Requiere login y propiedad. Nunca revelar PIN/CVV en chat.",
+      "steps": [
+        "Llamar sp_cards_get con p_owner_id = user_id y p_card_id.",
+        "Responder tipo, moneda, expiración, saldo/limite."
+      ],
+      "tool": "get_card_detail",
+      "response_template": "Tarjeta {{pan_mask}} — {{tipo_tarjeta}} en {{moneda}} — Saldo: {{saldo_actual}} / Límite: {{limite_credito}} — Expira {{exp}}."
+    },
+    {
+      "name": "movimientos_tarjeta",
+      "description": "Listar movimientos de una tarjeta con filtros.",
+      "policy": "Requiere login y propiedad.",
+      "steps": [
+        "Llamar sp_card_movements_list con filtros: from_date, to_date, q, type, page, page_size.",
+        "Devolver lista con fecha, tipo, monto, moneda, descripción."
+      ],
+      "tool": "get_card_movements",
+      "response_template": "Tus últimos movimientos:\n{{items}}",
+      "placeholders": {
+        "items": "• {{fecha}} — {{tipo}} — {{monto}} {{moneda}} — “{{descripcion}}”\n"
+      }
+    },
+    {
+      "name": "ver_pin_cvv",
+      "description": "Solicitar visualización de datos sensibles.",
+      "policy": "Prohibido mostrar PIN/CVV en chat. Ofrecer app segura con OTP o restablecer PIN.",
+      "steps": [
+        "Informar que no se muestra en chat.",
+        "Ofrecer generar OTP y ver en app o restablecer PIN en app.",
+        "Si usuario confirma app segura: llamar create_card_otp (no exponer OTP en chat)."
+      ],
+      "tool": "create_card_otp",
+      "response_template": "Por seguridad, no puedo mostrar tu PIN/CVV aquí. ¿Querés que te guíe para verlo temporalmente en la app o para restablecer el PIN?"
+    },
+    {
+      "name": "cambiar_estado_cuenta",
+      "description": "Cambiar estado de una cuenta (abrir, bloquear, cerrar).",
+      "policy": "Requiere login y validaciones. Registrar auditoría.",
+      "steps": [
+        "Confirmar cuenta y nuevo estado.",
+        "Llamar sp_accounts_set_status.",
+        "Confirmar estado final."
+      ],
+      "tool": "set_account_status",
+      "response_template": "La cuenta {{alias}} ahora está en estado {{estado}}."
+    }
+  ],
+  "templates": {
+    "saldo": "Tu saldo en **{{alias}}** ({{iban_mask}}) es **{{saldo}} {{moneda}}**.",
+    "movimientos_bloque": "Acá van tus últimos {{n}} movimientos en **{{pan_mask}}**:\n{{items}}\n¿Querés ver más?",
+    "pin_cvv_block": "Por seguridad, no puedo mostrar tu **PIN/CVV** en este canal. Puedo **guiarte a restablecerlo** o **generar un acceso temporal en la app segura**. ¿Qué preferís?",
+    "transfer_ok": "Listo ✅ Transferiste **{{monto}} {{moneda}}** de **{{origen_alias}}** a **{{destino_iban_mask}}**. Recibo: **{{receipt}}**."
+  },
+  "error_messages": {
+    "unauthenticated": "Necesitás iniciar sesión para continuar.",
+    "forbidden": "No tenés permiso sobre ese recurso.",
+    "insufficient_funds": "No hay saldo suficiente para completar la operación.",
+    "currency_mismatch": "La moneda del movimiento no coincide con la de la cuenta/tarjeta.",
+    "otp_invalid": "El código OTP es inválido o ha expirado.",
+    "not_found": "No se encontró el recurso solicitado.",
+    "tech_fail": "Tuvimos un problema. Probá de nuevo, por favor."
+  },
+  "quick_suggestions": {
+    "cuentas": ["Ver mis cuentas", "Consultar saldo", "Transferir interno"],
+    "tarjetas": ["Ver mis tarjetas", "Últimos movimientos", "Bloquear tarjeta"],
+    "seguridad": ["Restablecer PIN", "Configurar 2FA", "Generar OTP en app"],
+    "ayuda": ["Hablar con soporte", "Ver horarios", "Ver comisiones"]
+  },
+  "tool_mappings": [
+    {
+      "name": "get_accounts",
+      "description": "Lista cuentas del usuario",
+      "input": { "user_id": "uuid" },
+      "output": "array<cuenta>",
+      "backend": "sp_accounts_get(p_owner_id=user_id, p_account_id=null)"
+    },
+    {
+      "name": "get_account_by_id",
+      "description": "Detalle de cuenta",
+      "input": { "user_id": "uuid", "account_id": "uuid" },
+      "output": "cuenta",
+      "backend": "sp_accounts_get(p_owner_id=user_id, p_account_id=account_id)"
+    },
+    {
+      "name": "get_cards",
+      "description": "Lista tarjetas del usuario",
+      "input": { "user_id": "uuid" },
+      "output": "array<tarjeta>",
+      "backend": "sp_cards_get(p_owner_id=user_id, p_card_id=null)"
+    },
+    {
+      "name": "get_card_detail",
+      "description": "Detalle de tarjeta",
+      "input": { "user_id": "uuid", "card_id": "uuid" },
+      "output": "tarjeta",
+      "backend": "sp_cards_get(p_owner_id=user_id, p_card_id=card_id)"
+    },
+    {
+      "name": "get_card_movements",
+      "description": "Lista movimientos de tarjeta con filtros",
+      "input": {
+        "card_id": "uuid",
+        "from_date": "string|null",
+        "to_date": "string|null",
+        "type": "uuid|null",
+        "q": "string|null",
+        "page": "number",
+        "page_size": "number"
+      },
+      "output": "{ items: array<mov>, total: number, page: number, page_size: number }",
+      "backend": "sp_card_movements_list(p_card_id, p_page, p_page_size, p_from_date, p_to_date, p_type, p_q)"
+    },
+    {
+      "name": "validate_iban",
+      "description": "Valida si un IBAN existe en el banco",
+      "input": { "iban": "string" },
+      "output": "{ exists: boolean, owner_name?: string, owner_id?: uuid }",
+      "backend": "sp_bank_validate_account(p_iban)"
+    },
+    {
+      "name": "transfer_internal",
+      "description": "Transfiere entre cuentas del banco",
+      "input": {
+        "from_account_id": "uuid",
+        "to_account_id": "uuid",
+        "amount": "number",
+        "currency": "uuid",
+        "description": "string|null",
+        "user_id": "uuid"
+      },
+      "output": "{ transfer_id: uuid, receipt_number: string, status: string }",
+      "backend": "sp_transfer_create_internal(...)"
+    },
+    {
+      "name": "create_card_otp",
+      "description": "Genera OTP para ver datos sensibles en app segura",
+      "input": { "card_id": "uuid", "user_id": "uuid", "expires_in_seconds": "number" },
+      "output": "{ ok: boolean }",
+      "backend": "sp_otp_create(p_user_id, 'card_details', expires, codigo_hash) (no exponer OTP)"
+    },
+    {
+      "name": "set_account_status",
+      "description": "Cambia el estado de una cuenta",
+      "input": { "account_id": "uuid", "new_status": "uuid" },
+      "output": "{ updated: boolean }",
+      "backend": "sp_accounts_set_status(p_account_id, p_nuevo_estado)"
+    },
+    {
+      "name": "audit",
+      "description": "Registra evento de auditoría",
+      "input": {
+        "user_id": "uuid|null",
+        "action": "string",
+        "entity": "string",
+        "entity_id": "uuid|null",
+        "details": "json"
+      },
+      "output": "{ audit_id: number }",
+      "backend": "sp_audit_log(...)"
+    }
+  ],
+  "guards": {
+    "ensure_auth": "Bloquear si no hay sesión.",
+    "ensure_owner": "Verificar que resource.user_id === user_id.",
+    "ensure_currency_match": "Antes de crear movimientos/transferencias.",
+    "deny_sensitive_in_chat": "Bloquear PIN/CVV/OTP; ofrecer app segura o reset."
+  },
+  "entities_glossary": [
+    "usuarios(id, nombre, apellido, correo, usuario, rol, ...)",
+    "cuenta(id, usuario_id, iban, alias, tipo_cuenta, moneda, saldo, estado, ...)",
+    "moneda(id, nombre, iso)",
+    "tarjeta(id, usuario_id, tipo, numero_enmascarado, fecha_expiracion, cvv_hash, pin_hash, moneda, limite_credito, saldo_actual, ...)",
+    "movimiento_cuenta(id, cuenta_id, fecha, tipo, descripcion, moneda, monto)",
+    "movimiento_tarjeta(id, tarjeta_id, fecha, tipo, descripcion, moneda, monto)",
+    "otps(id, usuario_id, proposito, codigo_hash, fecha_expiracion, fecha_consumido)",
+    "auditoria(id, usuario_id, accion, detalles, fecha)"
+  ],
+  "samples": {
+    "account_list": "Tenés 2 cuentas:\n• Nómina (CR12 **** **** 3456) — Saldo: 250,000 CRC\n• Ahorros (CR55 **** **** 7890) — Saldo: 1,250 USD",
+    "card_detail": "Tarjeta **** 5678 — Crédito en Colones — Saldo: 120,000 / Límite: 500,000 — Expira 12/27",
+    "card_movs": "Tus últimos movimientos:\n• 2025-11-01 — Compra — ₡12,500 — “Restaurante”\n• 2025-10-30 — Pago — ₡50,000 — “Pago tarjeta”",
+    "pin_block": "Por seguridad, no puedo mostrar tu PIN/CVV aquí. Puedo guiarte a verlo temporalmente en la app segura o restablecer el PIN. ¿Cómo querés seguir?",
+    "transfer_ok": "Transferencia realizada: 75,000 CRC de Nómina a CR12 **** **** 6543. Recibo: A9F21C33."
+  },
+  "escalation": {
+    "when": [
+      "Fraude/sospecha de cargos no reconocidos",
+      "Robo/pérdida de tarjeta o dispositivo",
+      "Imposibilidad de acceso reiterada",
+      "Desacuerdo o insatisfacción del cliente"
+    ],
+    "message": "Te derivo a Soporte ahora mismo. ¿Preferís chat humano o llamada?",
+    "audit_on_escalation": true
+  },
+  "orchestration_hints": {
+    "routing": [
+      { "pattern": "saldo|cuenta(s)?", "intent": "consultar_saldo|listar_cuentas" },
+      { "pattern": "transfer(ir|encia)|enviar", "intent": "transferencia_interna" },
+      { "pattern": "tarjeta(s)?", "intent": "listar_tarjetas|detalle_tarjeta" },
+      { "pattern": "movimientos|gastos", "intent": "movimientos_tarjeta" },
+      { "pattern": "PIN|CVV|clave", "intent": "ver_pin_cvv" },
+      { "pattern": "IBAN|cuenta destino|validar cuenta", "intent": "validar_iban" },
+      { "pattern": "bloquear|cerrar|activar cuenta", "intent": "cambiar_estado_cuenta" }
+    ],
+    "pre_checks": [
+      "ensure_auth",
+      "if intent in [consultar_saldo, listar_cuentas, listar_tarjetas, detalle_tarjeta, movimientos_tarjeta, transferencia_interna, cambiar_estado_cuenta] then ensure_owner",
+      "if intent == transferencia_interna or intent == movimientos_tarjeta then ensure_currency_match",
+      "if intent == ver_pin_cvv then deny_sensitive_in_chat"
+    ],
+    "post_actions": [
+      "audit on critical actions: transfer, status_change, sensitive_view (solo metadatos, nunca datos sensibles)"
+    ]
+  }
+}

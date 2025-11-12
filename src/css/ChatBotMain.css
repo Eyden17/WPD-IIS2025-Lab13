@@ -1,0 +1,157 @@
+/* ===== Estructura general ===== */
+.App-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: hidden;
+  background: #f4f6f8;
+}
+
+/* ===== Header fijo arriba ===== */
+.App-header {
+  background: #ffffff;
+  border-bottom: 1px solid #dcdcdc;
+  padding: 14px 16px;
+  flex-shrink: 0;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.App-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* ===== Contenedor del chatbot ===== */
+.Chatbot-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  background: #f9fafb;
+}
+
+/* ===== Área visual del chat ===== */
+.Chat {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 14px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+/* ===== Mensajes del chat ===== */
+.Chat-message {
+  padding: 10px 14px;
+  border-radius: 14px;
+  max-width: 75%;
+  font-size: 14px;
+  line-height: 1.45;
+
+  display: inline-flex;
+  text-align: left;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ===== BOT (izquierda) ===== */
+.Chat-message.bot {
+  align-self: flex-start;
+  background: #e5ebf3;
+  color: #1f2937;
+}
+
+/* ===== USUARIO (derecha) ===== */
+.Chat-message.user {
+  align-self: flex-end;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* ===== Entrada del usuario ===== */
+.Input-client {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.Input-client input {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.Input-client input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb33;
+}
+
+.Input-client button {
+  padding: 10px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.Input-client button:hover {
+  background-color: #1e40af;
+}
+
+.Input-client button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Scroll personalizado ===== */
+.Chat::-webkit-scrollbar {
+  width: 6px;
+}
+.Chat::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+/* ===== Responsividad ===== */
+@media (min-width: 600px) {
+  .Chatbot-container {
+    padding: 16px;
+  }
+
+  .App-header h1 {
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .Chat-message {
+    font-size: 15px;
+  }
+}
